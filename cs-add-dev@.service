@@ -1,0 +1,6 @@
+[Unit]
+Description=CopyStation device added service
+
+[Service]
+Type=oneshot
+ExecStart=/home/copycat/copystation/attach.sh %I
