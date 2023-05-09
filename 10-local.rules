@@ -1,1 +1,0 @@
-KERNEL=="sd[b-z]", ACTION=="add", RUN+="/usr/bin/systemctl start cs-add-dev@%k.service"
