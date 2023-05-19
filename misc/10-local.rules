@@ -1,1 +1,2 @@
-KERNEL=="sd[b-z]", ACTION=="add", RUN+="/usr/bin/systemctl start cs-add-dev@%k.service"
+KERNEL=="sd[b-z]", ACTION=="add", RUN+="/usr/bin/curl -X POST localhost:8000/add/device/%k"
+KERNEL=="sd[b-z]", ACTION=="remove", RUN+="/usr/bin/curl -X POST localhost:8000/del/device/%k"
