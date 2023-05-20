@@ -5,7 +5,6 @@ TODO: implement proper logging
 TODO: use jinja template for /
 """
 
-import time
 from dataclasses import dataclass
 from datetime import datetime
 from subprocess import check_output, run, PIPE, STDOUT, CalledProcessError
@@ -14,9 +13,10 @@ from fastapi.responses import HTMLResponse
 
 app = FastAPI()
 
+
 @dataclass
 class Device:
-    __slots__ = ['partition', 'label', 'name']
+    __slots__ = ["partition", "label", "name"]
     partition: str
     label: str
     name: str
@@ -30,28 +30,33 @@ def get_device_info(device: str) -> list:
     """
     try:
         lsblk = run(
-            ['lsblk', '-n', '-o', 'SIZE,KNAME,LABEL', '-b', f'/dev/{device}'],
-            stderr=STDOUT, stdout=PIPE, check=True
+            ["lsblk", "-n", "-o", "SIZE,KNAME,LABEL", "-b", f"/dev/{device}"],
+            stderr=STDOUT,
+            stdout=PIPE,
+            check=True,
         )
-        sort = run(['sort', '-r'], input=lsblk.stdout, stdout=PIPE)
-        head = run(['head', '-2'], input=sort.stdout, stdout=PIPE)
-        device_info = check_output(['tail', '-1'], input=head.stdout).decode().strip()
+        sort = run(["sort", "-r"], input=lsblk.stdout, stdout=PIPE, check=True)
+        head = run(["head", "-2"], input=sort.stdout, stdout=PIPE, check=True)
+        device_info = check_output(["tail", "-1"], input=head.stdout).decode().strip()
         return device_info.split()[1:]
     except CalledProcessError:
-        return [""]*2
+        # TODO: logging!
+        return [""] * 2
 
 
 def handle_device(name: str, action: str) -> None:
     """get information about device and decide how to handle it"""
     device = Device(*get_device_info("mmcblk0"), name)
     if device.partition == "":
+        # TODO: logging!
         print("ERROR: not a valid drive.")
         return
     if action == "+++":
         mount_device(device)
     with open("logfile", mode="a", encoding="utf-8") as logfile:
         logfile.write(
-            f"{action} {datetime.now()} {name} {device.partition} '{device.label}'\n")
+            f"{action} {datetime.now()} {name} {device.partition} '{device.label}'\n"
+        )
 
 
 def mount_device(device: Device) -> None:
@@ -60,8 +65,11 @@ def mount_device(device: Device) -> None:
     mount_point = f"/home/copycat/mounts/{folder_prefix}-{time_formatted()}"
     run(["mkdir", "-p", mount_point], check=True)
     # mount partition
-    #run(["mount", partition, mount_point], check=False)
-    # copy empty folder/file structure
+    # - run(["mount", partition, mount_point], check=False)
+    # create sha1sum file for src folder
+    # - find copystation -type f -exec sha1sum {} \;
+    # copy src -> dest
+    # check dest files with sha1sum
 
 
 def time_formatted() -> str:
