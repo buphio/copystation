@@ -6,8 +6,9 @@ TODO: use jinja template for /
 """
 
 import time
+from collections import namedtuple
 from datetime import datetime
-from subprocess import check_output, run
+from subprocess import check_output, run, CalledProcessError
 from typing import Tuple
 from fastapi import BackgroundTasks, FastAPI
 from fastapi.responses import HTMLResponse
@@ -15,11 +16,13 @@ from fastapi.responses import HTMLResponse
 app = FastAPI()
 
 
-def get_device_info(device: str) -> Tuple[str, str] | None:
-    device_info = check_output(["./get_disk_info.sh", device]).decode().strip()
-    if not device_info or len(device_info.split()) != 3:
-        return (None, None)
-    return (device_info.split()[1], device_info.split()[2])
+def get_device_info(device: str) -> Tuple:
+    try:
+        device_info = check_output(["./get_disk_info.sh", device]).decode().strip()
+    except CalledProcessError:
+        # TODO: log error message!
+        return ()
+    return tuple(device_info.split())
 
 
 def handle_device(name: str, action: str) -> None:
@@ -35,9 +38,11 @@ def handle_device(name: str, action: str) -> None:
 
 def mount_device(partition: str, label: str) -> None:
     # create mountpoint
-    run(["mkdir", "-p", f"/home/copycat/mounts/{label}-{time_formatted()}"], check=False)
-    time.sleep(10)
+    mount_point = f"/home/copycat/mounts/{label}-{time_formatted()}"
+    run(["mkdir", "-p", mount_point], check=False)
+    time.sleep(2)
     # mount partition
+    #run(["mount", partition, mount_point], check=False)
     # copy empty folder/file structure
 
 
