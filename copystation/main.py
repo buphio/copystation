@@ -6,41 +6,59 @@ TODO: use jinja template for /
 """
 
 import time
-from collections import namedtuple
+from dataclasses import dataclass
 from datetime import datetime
-from subprocess import check_output, run, CalledProcessError
-from typing import Tuple
+from subprocess import check_output, run, PIPE, STDOUT, CalledProcessError
 from fastapi import BackgroundTasks, FastAPI
 from fastapi.responses import HTMLResponse
 
 app = FastAPI()
 
+@dataclass
+class Device:
+    __slots__ = ['partition', 'label', 'name']
+    partition: str
+    label: str
+    name: str
 
-def get_device_info(device: str) -> Tuple:
+
+def get_device_info(device: str) -> list:
+    """
+    try to get partition and label of attached block device via 'lsblk'
+    lsblk -n -o SIZE,KNAME,LABEL --bytes /dev/xxx | sort -r | head -2 | tail -1
+    TODO: test edge case when no label is given
+    """
     try:
-        device_info = check_output(["./get_disk_info.sh", device]).decode().strip()
+        lsblk = run(
+            ['lsblk', '-n', '-o', 'SIZE,KNAME,LABEL', '-b', f'/dev/{device}'],
+            stderr=STDOUT, stdout=PIPE, check=True
+        )
+        sort = run(['sort', '-r'], input=lsblk.stdout, stdout=PIPE)
+        head = run(['head', '-2'], input=sort.stdout, stdout=PIPE)
+        device_info = check_output(['tail', '-1'], input=head.stdout).decode().strip()
+        return device_info.split()[1:]
     except CalledProcessError:
-        # TODO: log error message!
-        return ()
-    return tuple(device_info.split())
+        return [""]*2
 
 
 def handle_device(name: str, action: str) -> None:
-    partition, label = get_device_info("mmcblk0p")
-    if not partition or not label:
+    """get information about device and decide how to handle it"""
+    device = Device(*get_device_info("mmcblk0"), name)
+    if device.partition == "":
         print("ERROR: not a valid drive.")
         return
     if action == "+++":
-        mount_device(partition, label)
+        mount_device(device)
     with open("logfile", mode="a", encoding="utf-8") as logfile:
-        logfile.write(f"{action} {datetime.now()} {name} {partition} '{label}'\n")
+        logfile.write(
+            f"{action} {datetime.now()} {name} {device.partition} '{device.label}'\n")
 
 
-def mount_device(partition: str, label: str) -> None:
+def mount_device(device: Device) -> None:
     # create mountpoint
-    mount_point = f"/home/copycat/mounts/{label}-{time_formatted()}"
-    run(["mkdir", "-p", mount_point], check=False)
-    time.sleep(2)
+    folder_prefix = device.label if device.label != "" else device.name
+    mount_point = f"/home/copycat/mounts/{folder_prefix}-{time_formatted()}"
+    run(["mkdir", "-p", mount_point], check=True)
     # mount partition
     #run(["mount", partition, mount_point], check=False)
     # copy empty folder/file structure
