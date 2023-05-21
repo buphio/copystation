@@ -15,7 +15,8 @@ from fastapi.templating import Jinja2Templates
 app = FastAPI()
 templates = Jinja2Templates(directory="templates")
 logging.config.fileConfig("logging.conf")
-logger = logging.getLogger(__name__)
+event_logger = logging.getLogger("events")
+app_logger = logging.getLogger("app")
 
 
 @dataclass
@@ -44,25 +45,24 @@ def get_device_info(device: str) -> list | None:
         head = run(["head", "-2"], input=sort.stdout, stdout=PIPE, check=True)
         device_info = check_output(["tail", "-1"], input=head.stdout).decode().strip()
         if len(device_info.split()) < 2:
-            logger.critical(f"'{device}' does not contain proper partition")
+            app_logger.critical(f"'{device}' does not contain proper partition")
             return None
         return device_info.split()[1:]
     except CalledProcessError as error:
-        logger.critical(error)
+        app_logger.critical(error)
         return None
 
 
 def handle_device(name: str, action: str) -> None:
     """get information about device and decide how to handle it"""
     # TODO: change "mmcblk0" to name
-    device_info = get_device_info("mmcblk1")
+    device_info = get_device_info("mmcblk0")
     if not device_info:
         return
     device = Device(name, *device_info)
-    with open("logs/logfile", mode="a", encoding="utf-8") as logfile:
-        logfile.write(
-            f"{action} {datetime.now()} {name} {device.partition} '{device.label}'\n"
-        )
+    event_logger.info(
+        f"{action} {datetime.now()} {name} {device.partition} '{device.label}'"
+    )
     if action == "+++":
         mount_device(device)
 
@@ -74,7 +74,7 @@ def mount_device(device: Device) -> None:
     try:
         run(["mkdir", "-p", mount_point], check=True)
     except CalledProcessError as error:
-        logger.critical(error)
+        app_logger.critical(error)
         return
     # mount partition
     # - run(["mount", partition, mount_point], check=False)
@@ -96,9 +96,9 @@ def time_formatted() -> str:
 @app.get("/", response_class=HTMLResponse)
 async def root(request: Request):  # TEMP SOLUTION FOR TESTING PURPOSES
     logs = []
-    with open("logs/logfile", mode="r", encoding="utf-8") as logfile:
+    with open("logs/events.log", mode="r", encoding="utf-8") as logfile:
         for line in logfile:
-            color = "green" if line.split()[0] == "+++" else "red"
+            color = "red" if line.split()[0] == "---" else "green"
             logs.append(f"{color};{line}")
     return templates.TemplateResponse(
         "testing.html", {"request": request, "logs": logs}
@@ -107,7 +107,7 @@ async def root(request: Request):  # TEMP SOLUTION FOR TESTING PURPOSES
 
 @app.get("/logs", response_class=HTMLResponse)
 async def logfile(request: Request):
-    with open("logs/output.log", mode="r", encoding="utf-8") as logfile:
+    with open("logs/app.log", mode="r", encoding="utf-8") as logfile:
         logs = logfile.readlines()
     return templates.TemplateResponse("logs.html", {"request": request, "logs": logs})
 
