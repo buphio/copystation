@@ -49,25 +49,37 @@ def get_device_info(device: str) -> list | None:
             return None
         return device_info.split()[1:]
     except CalledProcessError as error:
-        app_logger.critical(error)
+        app_logger.critical(f"'{device} does not seem to be a proper block device")
         return None
 
 
-def handle_device(name: str, action: str) -> None:
-    """get information about device and decide how to handle it"""
-    # TODO: change "mmcblk0" to name
+def add_device(name: str) -> None:
+    """
+    add device
+    """
     device_info = get_device_info("mmcblk0")
     if not device_info:
         return
     device = Device(name, *device_info)
-    event_logger.info(
-        f"{action} {datetime.now()} {name} {device.partition} '{device.label}'"
-    )
-    if action == "+++":
-        mount_device(device)
+    event_logger.info(f"+++ {datetime.now()} {name} '{device.label}'")
+    # device attached - mount and copy
+    if not mount_device(device):
+        return
+    event_logger.info(f"=== {datetime.now()} {name} mounted.")
 
 
-def mount_device(device: Device) -> None:
+def delete_device(name: str) -> None:
+    """
+    remove device
+    """
+    device_info = get_device_info("mmcblk0")
+    if not device_info:
+        return
+    device = Device(name, *device_info)
+    event_logger.info(f"--- {datetime.now()} {name} '{device.label}'")
+
+
+def mount_device(device: Device) -> bool:
     # create mountpoint
     folder_prefix = device.label if device.label != "" else device.name
     mount_point = f"/home/copycat/mounts/{folder_prefix}-{time_formatted()}"
@@ -75,14 +87,9 @@ def mount_device(device: Device) -> None:
         run(["mkdir", "-p", mount_point], check=True)
     except CalledProcessError as error:
         app_logger.critical(error)
-        return
+        return False
     # mount partition
-    # - run(["mount", partition, mount_point], check=False)
-    # create sha1sum file for src folder
-    # - find copystation -type f -exec sha1sum {} \;
-    # copy src -> dest
-    # check dest files with sha1sum
-    # unmount
+    # - run(["mount", partition, mount_point], check=True)
 
 
 def create_checksum_file() -> None:
@@ -113,12 +120,12 @@ async def logfile(request: Request):
 
 
 @app.post("/device/{name}")
-async def device_add(name: str, background_tasks: BackgroundTasks):
-    background_tasks.add_task(handle_device, name, "+++")
+async def device_post(name: str, background_tasks: BackgroundTasks):
+    background_tasks.add_task(add_device, name)
     return {f"{name}": "added"}
 
 
 @app.delete("/device/{name}")
-async def device_del(name: str, background_tasks: BackgroundTasks):
-    background_tasks.add_task(handle_device, name, "---")
+async def device_delete(name: str, background_tasks: BackgroundTasks):
+    background_tasks.add_task(delete_device, name)
     return {f"{name}": "removed"}
