@@ -20,17 +20,18 @@ logger = logging.getLogger(__name__)
 
 @dataclass
 class Device:
-    __slots__ = ["partition", "label", "name"]
-    partition: str
-    label: str
+    # slots would be faster, but do not support default values (label!)
+    # __slots__ = ["name", "partition", "label"]
     name: str
+    partition: str
+    label: str = ""
 
 
-def get_device_info(device: str) -> list:
+def get_device_info(device: str) -> list | None:
     """
     try to get partition and label of attached block device via 'lsblk'
     lsblk -n -o SIZE,KNAME,LABEL --bytes /dev/xxx | sort -r | head -2 | tail -1
-    TODO: test edge case when no label is given
+    TODO: test edge case when no label is given ?
     """
     try:
         lsblk = run(
@@ -42,31 +43,39 @@ def get_device_info(device: str) -> list:
         sort = run(["sort", "-r"], input=lsblk.stdout, stdout=PIPE, check=True)
         head = run(["head", "-2"], input=sort.stdout, stdout=PIPE, check=True)
         device_info = check_output(["tail", "-1"], input=head.stdout).decode().strip()
+        if len(device_info.split()) < 2:
+            logger.critical(f"'{device}' does not contain proper partition")
+            return None
         return device_info.split()[1:]
-    except CalledProcessError:
-        logger.critical(f"'{device}' not readable.")
-        return [""] * 2
+    except CalledProcessError as error:
+        logger.critical(error)
+        return None
 
 
 def handle_device(name: str, action: str) -> None:
     """get information about device and decide how to handle it"""
-    device = Device(*get_device_info("mmcblk1"), name)
-    if device.partition == "":
-        logger.critical(f"'{device.name}' does not contain valid partition.")
+    # TODO: change "mmcblk0" to name
+    device_info = get_device_info("mmcblk1")
+    if not device_info:
         return
-    if action == "+++":
-        mount_device(device)
+    device = Device(name, *device_info)
     with open("logs/logfile", mode="a", encoding="utf-8") as logfile:
         logfile.write(
             f"{action} {datetime.now()} {name} {device.partition} '{device.label}'\n"
         )
+    if action == "+++":
+        mount_device(device)
 
 
 def mount_device(device: Device) -> None:
     # create mountpoint
     folder_prefix = device.label if device.label != "" else device.name
     mount_point = f"/home/copycat/mounts/{folder_prefix}-{time_formatted()}"
-    run(["mkdir", "-p", mount_point], check=True)
+    try:
+        run(["mkdir", "-p", mount_point], check=True)
+    except CalledProcessError as error:
+        logger.critical(error)
+        return
     # mount partition
     # - run(["mount", partition, mount_point], check=False)
     # create sha1sum file for src folder
@@ -74,6 +83,10 @@ def mount_device(device: Device) -> None:
     # copy src -> dest
     # check dest files with sha1sum
     # unmount
+
+
+def create_checksum_file() -> None:
+    pass
 
 
 def time_formatted() -> str:
@@ -87,7 +100,9 @@ async def root(request: Request):  # TEMP SOLUTION FOR TESTING PURPOSES
         for line in logfile:
             color = "green" if line.split()[0] == "+++" else "red"
             logs.append(f"{color};{line}")
-    return templates.TemplateResponse("testing.html", {"request": request, "logs": logs})
+    return templates.TemplateResponse(
+        "testing.html", {"request": request, "logs": logs}
+    )
 
 
 @app.get("/logs", response_class=HTMLResponse)
