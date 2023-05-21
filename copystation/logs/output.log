@@ -1,0 +1,8 @@
+2023-05-21 09:28:46,948:CRITICAL:main:get_device_info:47:Disk not readable.
+2023-05-21 09:28:46,949:CRITICAL:main:handle_device:55:Disk does not contain valid partition.
+2023-05-21 09:30:03,481:CRITICAL:main:get_device_info:47:mmcblk1 not readable.
+2023-05-21 09:30:03,482:CRITICAL:main:handle_device:55:Device(partition='', label='', name='sdb') does not contain valid partition.
+2023-05-21 09:30:50,608:CRITICAL:main:get_device_info:47:mmcblk1 not readable.
+2023-05-21 09:30:50,608:CRITICAL:main:handle_device:55:sdb does not contain valid partition.
+2023-05-21 09:31:18,837:CRITICAL:main:get_device_info:47:'mmcblk1' not readable.
+2023-05-21 09:31:18,838:CRITICAL:main:handle_device:55:'sdb' does not contain valid partition.

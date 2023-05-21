@@ -4,15 +4,18 @@ POC for copystation backend
 TODO: implement proper logging
 """
 
+import logging.config
 from dataclasses import dataclass
 from datetime import datetime
 from subprocess import check_output, run, PIPE, STDOUT, CalledProcessError
-from fastapi import BackgroundTasks, FastAPI
+from fastapi import BackgroundTasks, FastAPI, Request
 from fastapi.responses import HTMLResponse
 from fastapi.templating import Jinja2Templates
 
 app = FastAPI()
 templates = Jinja2Templates(directory="templates")
+logging.config.fileConfig("logging.conf")
+logger = logging.getLogger(__name__)
 
 
 @dataclass
@@ -41,20 +44,19 @@ def get_device_info(device: str) -> list:
         device_info = check_output(["tail", "-1"], input=head.stdout).decode().strip()
         return device_info.split()[1:]
     except CalledProcessError:
-        # TODO: logging!
+        logger.critical(f"'{device}' not readable.")
         return [""] * 2
 
 
 def handle_device(name: str, action: str) -> None:
     """get information about device and decide how to handle it"""
-    device = Device(*get_device_info("mmcblk0"), name)
+    device = Device(*get_device_info("mmcblk1"), name)
     if device.partition == "":
-        # TODO: logging!
-        print("ERROR: not a valid drive.")
+        logger.critical(f"'{device.name}' does not contain valid partition.")
         return
     if action == "+++":
         mount_device(device)
-    with open("logfile", mode="a", encoding="utf-8") as logfile:
+    with open("logs/logfile", mode="a", encoding="utf-8") as logfile:
         logfile.write(
             f"{action} {datetime.now()} {name} {device.partition} '{device.label}'\n"
         )
@@ -77,18 +79,21 @@ def time_formatted() -> str:
     return datetime.now().strftime("%Y%m%d_%H%M%S")
 
 
-@app.get("/")
-async def root():  # TEMP SOLUTION FOR TESTING PURPOSES
+@app.get("/", response_class=HTMLResponse)
+async def root(request: Request):  # TEMP SOLUTION FOR TESTING PURPOSES
     logs = []
-    with open("logfile", mode="r", encoding="utf-8") as logfile:
+    with open("logs/logfile", mode="r", encoding="utf-8") as logfile:
         for line in logfile:
-            color = "black"
-            if line.split()[0] == "+++":
-                color = "green"
-            elif line.split()[0] == "---":
-                color = "#ae0000"
-            logs.append(f"<div style='color:{color};'>{line}</div>")
-    return templates.TemplateResponse("log.html", logs)
+            color = "green" if line.split()[0] == "+++" else "red"
+            logs.append(f"{color};{line}")
+    return templates.TemplateResponse("testing.html", {"request": request, "logs": logs})
+
+
+@app.get("/logs", response_class=HTMLResponse)
+async def logfile(request: Request):
+    with open("logs/output.log", mode="r", encoding="utf-8") as logfile:
+        logs = logfile.readlines()
+    return templates.TemplateResponse("logs.html", {"request": request, "logs": logs})
 
 
 @app.post("/device/{name}")

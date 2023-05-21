@@ -1,0 +1,17 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta http-equiv="X-UA-Compatible" content="IE=edge">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Copystation</title>
+    <style>body { font-family: monospace; background-color: whitesmoke; }</style>
+</head>
+<body>
+    <h1>Copystation</h1>
+    {% for line in logs %}
+        {% set split_line = line.split(";") %}
+        <div style="color:{{ split_line[0] }};">{{ split_line[1] }}</div>
+    {% endfor %}
+</body>
+</html>
