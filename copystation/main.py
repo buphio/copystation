@@ -10,6 +10,7 @@ from datetime import datetime
 from subprocess import check_output, run, PIPE, STDOUT, CalledProcessError
 from fastapi import BackgroundTasks, FastAPI
 from fastapi.responses import HTMLResponse
+from fastapi.templating import Jinja2Templates
 
 app = FastAPI()
 
@@ -20,6 +21,9 @@ class Device:
     partition: str
     label: str
     name: str
+
+
+templates = Jinja2Templates(directory="templates")
 
 
 def get_device_info(device: str) -> list:
@@ -78,9 +82,7 @@ def time_formatted() -> str:
 
 @app.get("/")
 async def root():  # TEMP SOLUTION FOR TESTING PURPOSES
-    html_response = """<html><head><title>Copystation</title>
-    <style>body { font-family: monospace; background-color: #ebebeb; font-size: 14px; }
-    </style></head><body><h1>Logfile</h1>"""
+    logs = []
     with open("logfile", mode="r", encoding="utf-8") as logfile:
         for line in logfile:
             color = "black"
@@ -88,9 +90,8 @@ async def root():  # TEMP SOLUTION FOR TESTING PURPOSES
                 color = "green"
             elif line.split()[0] == "---":
                 color = "#ae0000"
-            html_response += f"<div style='color:{color};'>{line}</div>"
-    html_response += "</body></html>"
-    return HTMLResponse(content=html_response, status_code=200)
+            logs.append(f"<div style='color:{color};'>{line}</div>")
+    return templates.TemplateResponse("log.html", logs)
 
 
 @app.post("/device/{name}")
