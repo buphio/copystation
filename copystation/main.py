@@ -2,7 +2,6 @@
 POC for copystation backend
 
 TODO: implement proper logging
-TODO: use jinja template for /
 """
 
 from dataclasses import dataclass
@@ -13,6 +12,7 @@ from fastapi.responses import HTMLResponse
 from fastapi.templating import Jinja2Templates
 
 app = FastAPI()
+templates = Jinja2Templates(directory="templates")
 
 
 @dataclass
@@ -21,9 +21,6 @@ class Device:
     partition: str
     label: str
     name: str
-
-
-templates = Jinja2Templates(directory="templates")
 
 
 def get_device_info(device: str) -> list:
