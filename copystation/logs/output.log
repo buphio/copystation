@@ -6,3 +6,29 @@
 2023-05-21 09:30:50,608:CRITICAL:main:handle_device:55:sdb does not contain valid partition.
 2023-05-21 09:31:18,837:CRITICAL:main:get_device_info:47:'mmcblk1' not readable.
 2023-05-21 09:31:18,838:CRITICAL:main:handle_device:55:'sdb' does not contain valid partition.
+2023-05-21 11:05:24,780:CRITICAL:main:get_device_info:47:'mmcblk1' not readable - 32
+2023-05-21 11:05:24,780:CRITICAL:main:handle_device:56:'sdb' does not contain valid partition.
+2023-05-21 11:09:49,555:CRITICAL:main:get_device_info:47:'mmcblk1' not readable - code 32
+2023-05-21 11:14:50,708:CRITICAL:main:handle_device:59:['partition1']
+2023-05-21 11:15:18,220:CRITICAL:main:handle_device:59:['partition1']
+2023-05-21 11:16:27,673:CRITICAL:main:handle_device:59:['partition1']
+2023-05-21 11:16:52,989:CRITICAL:main:handle_device:59:['partition1']
+2023-05-21 11:19:01,457:CRITICAL:main:handle_device:59:Device(name='sda', partition='mmcblk0p2', label='writable')
+2023-05-21 11:36:10,373:CRITICAL:main:device_add:114:sda
+2023-05-21 11:37:45,946:CRITICAL:main:get_device_info:35:gets called
+2023-05-21 11:38:17,744:CRITICAL:main:get_device_info:35:gets called
+2023-05-21 11:38:17,810:CRITICAL:main:get_device_info:46:63595068928 mmcblk0p2 writable
+2023-05-21 11:38:57,886:CRITICAL:main:get_device_info:35:gets called
+2023-05-21 11:38:57,951:CRITICAL:main:get_device_info:46:63595068928 mmcblk0p2 writable
+2023-05-21 11:39:37,245:CRITICAL:main:get_device_info:35:gets called
+2023-05-21 11:39:37,310:CRITICAL:main:get_device_info:46:63595068928 mmcblk0p2 writable
+2023-05-21 11:39:37,311:CRITICAL:main:get_device_info:47:['mmcblk0p2', 'writable']
+2023-05-21 11:39:37,311:CRITICAL:main:handle_device:58:['mmcblk0p2', 'writable']
+2023-05-21 11:41:23,390:CRITICAL:main:get_device_info:35:gets called
+2023-05-21 11:41:23,455:CRITICAL:main:get_device_info:47:<class 'str'>
+2023-05-21 11:41:23,456:CRITICAL:main:handle_device:58:['mmcblk0p2', 'writable']
+2023-05-21 11:43:17,207:CRITICAL:main:get_device_info:47:<class 'str'>
+2023-05-21 11:43:17,207:CRITICAL:main:handle_device:58:['mmcblk0p2', 'writable']
+2023-05-21 11:45:03,597:CRITICAL:main:handle_device:58:['mmcblk0p2', 'writable']
+2023-05-21 11:45:32,470:CRITICAL:main:get_device_info:50:'mmcblk1' not readable - code Command '['lsblk', '-n', '-o', 'SIZE,KNAME,LABEL', '-b', '/dev/mmcblk1']' returned non-zero exit status 32.
+2023-05-21 11:46:11,408:CRITICAL:main:get_device_info:50:Command '['lsblk', '-n', '-o', 'SIZE,KNAME,LABEL', '-b', '/dev/mmcblk1']' returned non-zero exit status 32.
