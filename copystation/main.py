@@ -1,7 +1,7 @@
 """
 POC for copystation backend
 
-TODO: implement proper logging
+TODO: create sha1sum file in dest folder, then unmount, write to logfile
 """
 
 import logging.config
@@ -73,6 +73,7 @@ def mount_device(device: Device) -> None:
     # - find copystation -type f -exec sha1sum {} \;
     # copy src -> dest
     # check dest files with sha1sum
+    # unmount
 
 
 def time_formatted() -> str:
