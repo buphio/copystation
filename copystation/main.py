@@ -64,7 +64,7 @@ def add_device(name: str) -> None:
     """
     add device
     """
-    device_info = get_device_info("mmcblk0")
+    device_info = get_device_info(name)
     if not device_info:
         return
 
@@ -78,20 +78,38 @@ def add_device(name: str) -> None:
 
     # read config
     config.read("user.conf")
-    project = "{config['project']['name']}-{custom_timestamp('date')}"
+    project = f"{config['project']['name']}-{custom_timestamp('date')}"
     folder_prefix = device.label if device.label != "" else device.name
     destination = f"/home/copycat/mounts/{project}/{folder_prefix}-{custom_timestamp('date')}"
+    try:
+        run(["mkdir", "-p", destination])
+    except CalledProcessError as error:
+        app_logger.critical(error)
 
-    if not copy_files(mount_point, destination):
+    if not create_checksum_file(mount_point, destination):
         return
     event_logger.info(f"::: {datetime.now()} {device.label} copied to {destination}")
+
+    # unmount drive
+    try:
+        run(["umount", mount_point])
+    except CalledProcessError as error:
+        app_logger.critical(error)
+
+    # delete mount point
+    try:
+        run(["rm", "-rf", mount_point])
+    except CalledProcessError as error:
+        app_logger.critical(error)
+
+    event_logger.info(f"::: {datetime.now()} {device.label} ready to be ejected")
 
 
 def delete_device(name: str) -> None:
     """
     remove device
     """
-    device_info = get_device_info("mmcblk0")
+    device_info = get_device_info(name)
     if not device_info:
         return
 
@@ -113,7 +131,7 @@ def mount_device(device: Device) -> str | None:
 
     # mount partition
     try:
-        run(["mount", device.partition, mount_point], check=True)
+        run(["mount", f"/dev/{device.partition}", mount_point], check=True)
     except CalledProcessError as error:
         app_logger.critical(error)
         return None
@@ -121,20 +139,38 @@ def mount_device(device: Device) -> str | None:
     return mount_point
 
 
-def create_checksum_file(mount_point: str) -> bool:
+def create_checksum_file(mount_point: str, destination: str) -> bool:
     """
     create file with sha1 checksum of all files in src and copy it to dest folder
     """
     # create checksum file
+    # find copystation -type f -exec md5sum {} > {}.md5sum \;
+    # find old-cs/* -type f -print0 | xargs -0 sha1sum
+    # sort = run(["sort", "-r"], input=lsblk.stdout, stdout=PIPE, check=True)
     try:
-        run(["find", f"{mount_point}", "-type", "f"], check=True)
-    except CalledProcessError:
-        pass
+        find_files = run(
+            ["find", f"{mount_point}", "-type", "f", "-print0"],
+            stderr=STDOUT,
+            stdout=PIPE,
+            check=True
+        )
+        # open file with: stdout=file
+        with open(f"{destination}/copy.log", mode="w", encoding="utf8") as file:
+            xargs_sha1 = run(
+                ["xargs", "-0", "sha1sum"], stdin=find_files, stdout=file, check=True
+            )
+    except (CalledProcessError, IOError) as error:
+        app_logger.critical(error)
 
     return True
 
 
 def copy_files(mount_point: str, destination: str) -> bool:
+    try:
+        run(["touch", f"{destination}/copied"], check=True)
+    except CalledProcessError as error:
+        app_logger.critical(error)
+        return False
     return True
 
 

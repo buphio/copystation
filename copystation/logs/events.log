@@ -1,5 +1,13 @@
-+++ 2023-05-21 19:57:21.380336 sda 'writable'
---- 2023-05-21 20:26:12.859982 sda 'writable'
-+++ 2023-05-21 20:47:45.018393 sdc 'writable'
-+++ 2023-05-21 20:55:21.395110 sdf 'writable'
-=== 2023-05-21 20:55:21.412491 sdf mounted.
++++ 2023-05-22 18:53:25.295256 sda 'WORK01'
+::: 2023-05-22 18:53:25.333636 sda mounted on /mnt/sda-20230522_185325
+::: 2023-05-22 18:53:25.352175 WORK01 copied to /home/copycat/mounts/ppe-20230522/WORK01-20230522
+::: 2023-05-22 18:53:25.368981 WORK01 ready to be ejected
+--- 2023-05-22 18:56:00.601079 sda 'WORK01'
++++ 2023-05-22 19:02:04.946097 sda 'WORK01'
+::: 2023-05-22 19:02:04.985288 sda mounted on /mnt/sda-20230522_190204
+::: 2023-05-22 19:02:05.008298 WORK01 copied to /home/copycat/mounts/ppe-20230522/WORK01-20230522
+::: 2023-05-22 19:02:05.025070 WORK01 ready to be ejected
++++ 2023-05-22 19:09:25.401811 sda 'WORK01'
+::: 2023-05-22 19:09:25.442081 sda mounted on /mnt/sda-20230522_190925
+::: 2023-05-22 19:09:54.510488 WORK01 copied to /home/copycat/mounts/ppe-20230522/WORK01-20230522
+::: 2023-05-22 19:09:55.233054 WORK01 ready to be ejected

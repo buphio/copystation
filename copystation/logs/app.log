@@ -1,1 +1,1 @@
-2023-05-21 19:58:22,160:CRITICAL:app:get_device_info:52:'mmcblk1' does not seem to be a proper block device
+2023-05-22 18:55:30,059:CRITICAL:app:get_device_info:59:'name does not seem to be a proper block device
