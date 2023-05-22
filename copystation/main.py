@@ -76,7 +76,7 @@ def add_device(name: str) -> None:
         return
     event_logger.info(f"::: {datetime.now()} {name} mounted on {mount_point}")
 
-    # read config
+    # read config and create destination folder
     config.read("user.conf")
     project = f"{config['project']['name']}-{custom_timestamp('date')}"
     folder_prefix = device.label if device.label != "" else device.name
@@ -156,8 +156,8 @@ def create_checksum_file(mount_point: str, destination: str) -> bool:
         )
         # open file with: stdout=file
         with open(f"{destination}/copy.log", mode="w", encoding="utf8") as file:
-            xargs_sha1 = run(
-                ["xargs", "-0", "sha1sum"], stdin=find_files, stdout=file, check=True
+            run(
+                ["xargs", "-0", "sha1sum"], input=find_files.stdout, stdout=file, check=True
             )
     except (CalledProcessError, IOError) as error:
         app_logger.critical(error)
