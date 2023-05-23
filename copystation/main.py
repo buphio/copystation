@@ -60,7 +60,7 @@ def get_device_info(device: str) -> list | None:
         return None
 
 
-def add_device(name: str) -> None:
+def device_attached(name: str) -> None:
     """
     add device
     """
@@ -105,7 +105,7 @@ def add_device(name: str) -> None:
     event_logger.info(f"::: {datetime.now()} {device.label} ready to be ejected")
 
 
-def delete_device(name: str) -> None:
+def device_detached(name: str) -> None:
     """
     remove device
     """
@@ -130,6 +130,7 @@ def mount_device(device: Device) -> str | None:
         return None
 
     # mount partition
+    # check filesystem first, for edge-cases where multiple fs are given(?)
     try:
         run(["mount", f"/dev/{device.partition}", mount_point], check=True)
     except CalledProcessError as error:
@@ -146,7 +147,6 @@ def create_checksum_file(mount_point: str, destination: str) -> bool:
     # create checksum file
     # find copystation -type f -exec md5sum {} > {}.md5sum \;
     # find old-cs/* -type f -print0 | xargs -0 sha1sum
-    # sort = run(["sort", "-r"], input=lsblk.stdout, stdout=PIPE, check=True)
     try:
         find_files = run(
             ["find", f"{mount_point}", "-type", "f", "-print0"],
@@ -166,11 +166,16 @@ def create_checksum_file(mount_point: str, destination: str) -> bool:
 
 
 def copy_files(mount_point: str, destination: str) -> bool:
-    try:
-        run(["touch", f"{destination}/copied"], check=True)
-    except CalledProcessError as error:
-        app_logger.critical(error)
-        return False
+    """
+    copy mounted drive to destination with rsync
+    rsync -ar [source] [destination] && rsync -arc [source] [destination]
+    """
+    #try:
+    #    run(["rsync", "-ar", mount_point, destination], check=True)
+    #except CalledProcessError as error:
+    #    app_logger.critical(error)
+    #    return False
+
     return True
 
 
@@ -203,13 +208,13 @@ async def logfile(request: Request):
 
 @app.post("/device/{name}")
 async def device_post(name: str, background_tasks: BackgroundTasks):
-    background_tasks.add_task(add_device, name)
+    background_tasks.add_task(device_attached, name)
     return {f"{name}": "added"}
 
 
 @app.delete("/device/{name}")
 async def device_delete(name: str, background_tasks: BackgroundTasks):
-    background_tasks.add_task(delete_device, name)
+    background_tasks.add_task(device_detached, name)
     return {f"{name}": "removed"}
 
 @app.post("/settings")
