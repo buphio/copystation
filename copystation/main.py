@@ -68,12 +68,12 @@ def device_attached(name: str) -> None:
         return
 
     device = Device(name, *device_info)
-    event_logger.info(f"+++ {datetime.now()} {name} '{device.label}'")
+    event_logger.info("+++ %s %s '%s'", datetime.now(), name, device.label)
 
     mount_point = mount_device(device)
     if not mount_point:
         return
-    event_logger.info(f"::: {datetime.now()} {name} mounted on {mount_point}")
+    event_logger.info("::: %s %s mounted on %s", datetime.now(), name, mount_point)
 
     # read config and create destination folder
     config = configparser.ConfigParser()
@@ -91,7 +91,7 @@ def device_attached(name: str) -> None:
 
     if not create_checksum_file(mount_point, destination):
         return
-    event_logger.info(f"::: {datetime.now()} {device.label} copied to {destination}")
+    event_logger.info("::: %s %s copied to %s", datetime.now(), device.label, destination)
 
     # unmount drive
     try:
@@ -105,19 +105,18 @@ def device_attached(name: str) -> None:
     except CalledProcessError as error:
         app_logger.critical(error)
 
-    event_logger.info(f"::: {datetime.now()} {device.label} ready to be ejected")
+    event_logger.info("::: %s %s ready to be ejected", datetime.now(), device.label)
 
 
 def device_detached(name: str) -> None:
-    """
-    remove device
-    """
+    """Remove attached device."""
+
     device_info = get_device_info(name)
     if not device_info:
         return
 
     device = Device(name, *device_info)
-    event_logger.info(f"--- {datetime.now()} {name} '{device.label}'")
+    event_logger.info("--- %s %s '%s'", datetime.now(), name, device.label)
 
 
 def mount_device(device: Device) -> str | None:
@@ -130,7 +129,7 @@ def mount_device(device: Device) -> str | None:
     try:
         run(["mkdir", "-p", f"{mount_point}"], check=True)
     except CalledProcessError:
-        app_logger.critical(f"Could not create '{mount_point}'")
+        app_logger.critical("Could not create '%s'", mount_point)
         return None
 
     # mount partition
@@ -170,8 +169,9 @@ def create_checksum_file(mount_point: str, destination: str) -> bool:
 
 def copy_files(mount_point: str, destination: str) -> bool:
     """
-    copy mounted drive to destination with rsync
+    Copy mounted drive to destination with rsync.
     rsync -a [source] [destination]
+    TODO: replace with own module?
     """
     # try:
     #    run(["rsync", "-a", mount_point, destination], user="copycat", check=True)
@@ -183,9 +183,8 @@ def copy_files(mount_point: str, destination: str) -> bool:
 
 
 def custom_timestamp(dt_format="datetime") -> str:
-    """
-    create timestamp depending on passed argument
-    """
+    """Create custom timestamp depending on passed argument."""
+
     if dt_format == "date":
         return datetime.now().strftime("%Y%m%d")
     if dt_format == "time":
@@ -194,9 +193,8 @@ def custom_timestamp(dt_format="datetime") -> str:
 
 
 def set_user_settings(project_name: str):
-    """
-    update user.conf file with new project name
-    """
+    """Update 'config.ini' file with new project name."""
+
     config = configparser.ConfigParser()
     config.read("config.ini")
     config["PROJECT"]["name"] = project_name
@@ -206,10 +204,8 @@ def set_user_settings(project_name: str):
 
 @app.get("/", response_class=HTMLResponse)
 async def root(request: Request):  # TEMP SOLUTION FOR TESTING PURPOSES
-    """
-    read events.log and present it in colorcoded fashion to user
-    with minimalistic html template
-    """
+    """Read 'events.log' and present it in colorcoded fashion to user with HTML template."""
+
     logs = []
     with open("logs/events.log", mode="r", encoding="utf-8") as events_log:
         for line in events_log:
