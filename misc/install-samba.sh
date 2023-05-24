@@ -2,8 +2,8 @@
 
 apt install samba
 ufw allow Samba
-useradd -M -s /sbin/nologin copyuser
-sudo smbpasswd -a copyuser
+useradd -M -s /sbin/nologin -g copycat copysmb
+sudo smbpasswd -a copysmb
 tee -a /etc/samba/smb.conf << END
 [copystatin]
     comment = copystation
