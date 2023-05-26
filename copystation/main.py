@@ -16,6 +16,7 @@ from fastapi import BackgroundTasks, FastAPI, Request
 from fastapi.responses import HTMLResponse
 from fastapi.templating import Jinja2Templates
 
+import copytools
 
 app = FastAPI()
 
@@ -28,7 +29,7 @@ app_logger = logging.getLogger("app")
 
 @dataclass
 class Device:
-    """Device class that holds name, partition to mount and label of attached drive."""
+    """Device class that holds information of attached drive."""
     name: str
     partition: str
     label: str = ""
@@ -73,10 +74,10 @@ def device_attached(name: str) -> None:
     device = Device(name, *device_info)
     event_logger.info("+++ %s %s '%s'", datetime.now(), name, device.label)
 
-    mount_point = mount_device(device)
-    if not mount_point:
+    source = mount_device(device)
+    if not source:
         return
-    event_logger.info("::: %s %s mounted on %s", datetime.now(), name, mount_point)
+    event_logger.info("::: %s %s mounted on %s", datetime.now(), name, source)
 
     # read config and create destination folder
     config = configparser.ConfigParser()
@@ -84,7 +85,7 @@ def device_attached(name: str) -> None:
     project = f"{config['PROJECT']['name']}-{custom_timestamp('date')}"
 
     folder_prefix = device.label if device.label != "" else device.name
-    destination = (
+    destination = Path(
         f"/home/copycat/mounts/{project}/{folder_prefix}-{custom_timestamp('datetime')}"
     )
     try:
@@ -92,8 +93,11 @@ def device_attached(name: str) -> None:
     except CalledProcessError as error:
         app_logger.critical(error)
 
-    if not create_checksum_file(mount_point, destination):
+    if not create_checksum_file(source, destination):
         return
+
+    #if not copytools.vcopy(source, destination):
+    #    return
 
     event_logger.info(
         "::: %s %s copied to %s", datetime.now(), device.label, destination
@@ -101,13 +105,13 @@ def device_attached(name: str) -> None:
 
     # unmount drive
     try:
-        run(["umount", mount_point], check=True)
+        run(["umount", source], check=True)
     except CalledProcessError as error:
         app_logger.critical(error)
 
     # delete mount point
     try:
-        run(["rm", "-rf", mount_point], check=True)
+        run(["rm", "-rf", source], check=True)
     except CalledProcessError as error:
         app_logger.critical(error)
 
@@ -125,21 +129,19 @@ def device_detached(name: str) -> None:
     event_logger.info("--- %s %s '%s'", datetime.now(), name, device.label)
 
 
-def mount_device(device: Device) -> str | None:
+def mount_device(device: Device) -> Path | None:
     """
     Create mount point from device label or device name and try to mount it.
-    # TODO: check mountpoint!!!
     """
 
-    mount_point = f"/mnt/{device.name}-{custom_timestamp()}"
+    mount_point = Path(f"/mnt/{device.name}-{custom_timestamp()}")
     try:
-        run(["mkdir", "-p", f"{mount_point}"], check=True)
+        run(["mkdir", "-p", mount_point], check=True)
     except CalledProcessError:
         app_logger.critical("Could not create '%s'", mount_point)
         return None
 
-    # mount partition
-    # check filesystem first, for edge-cases where multiple fs are given(?)
+    #? check filesystem first, for edge-cases where multiple fs are given(?)
     try:
         run(
             ["mount", "-o", "ro", f"/dev/{device.partition}", mount_point],
@@ -152,18 +154,18 @@ def mount_device(device: Device) -> str | None:
     return mount_point
 
 
-def create_checksum_file(mount_point: str, destination: str) -> bool:
+def create_checksum_file(mount_point: Path, destination: Path) -> bool:
     """Create file with sha1 checksum of all files in destination folder."""
 
     try:
         find_files = run(
-            ["find", f"{mount_point}", "-type", "f", "-print0"],
+            ["find", mount_point, "-type", "f", "-print0"],
             stderr=STDOUT,
             stdout=PIPE,
             check=True,
         )
         # open file with: stdout=file
-        checksum_log = f"{destination}/copystation.sha1sum"
+        checksum_log = f"{destination}/copystation.log"
         run(["touch", checksum_log], user="copycat", group="copycat", check=True)
         with open(checksum_log, mode="w", encoding="utf8") as file:
             run(
@@ -180,12 +182,12 @@ def create_checksum_file(mount_point: str, destination: str) -> bool:
     return True
 
 
-def custom_timestamp(dt_format="datetime") -> str:
+def custom_timestamp(date_format="datetime") -> str:
     """Create custom timestamp depending on passed argument."""
 
-    if dt_format == "date":
+    if date_format == "date":
         return datetime.now().strftime("%Y%m%d")
-    if dt_format == "time":
+    if date_format == "time":
         return datetime.now().strftime("%H%M%S")
     return datetime.now().strftime("%Y%m%d_%H%M%S")
 
@@ -199,6 +201,9 @@ def set_user_settings(project_name: str):
 
     with open("config.ini", "w", encoding="utf-8") as config_file:
         config.write(config_file)
+
+    event_logger.info("::: %s Changed project name to '%s'", datetime.now(), project_name)
+    app_logger.info("Changed project name to %s", project_name)
 
 
 @app.get("/", response_class=HTMLResponse)
@@ -218,6 +223,7 @@ async def root(request: Request):  # TEMP SOLUTION FOR TESTING PURPOSES
 @app.get("/logs", response_class=HTMLResponse)
 async def logfile(request: Request):
     """Read 'app.log' and display with HTML template."""
+
     with open("logs/app.log", mode="r", encoding="utf-8") as app_log:
         logs = app_log.readlines()
     return templates.TemplateResponse("logs.html", {"request": request, "logs": logs})
