@@ -9,6 +9,7 @@ import logging.config
 
 from dataclasses import dataclass
 from datetime import datetime
+from glob import glob
 from pathlib import Path
 from subprocess import check_output, run, PIPE, STDOUT, CalledProcessError
 
@@ -16,7 +17,8 @@ from fastapi import BackgroundTasks, FastAPI, Request
 from fastapi.responses import HTMLResponse
 from fastapi.templating import Jinja2Templates
 
-import copytools
+#from . import copytools
+
 
 app = FastAPI()
 
@@ -41,26 +43,35 @@ def get_device_info(device: str) -> list | None:
     lsblk -n -o SIZE,KNAME,LABEL --bytes /dev/xxx | sort -r | head -2 | tail -1
     TODO: change KNAME(partition) to PARTUUID(partuiid)
           -> needs to be tested
+          change to other tools for LABEL?
     """
+
+    command = ["lsblk", "-n", "-o", "SIZE,KNAME", "-b"]
+    command.extend(glob(f"/dev/{device}[0-9]"))
 
     try:
         lsblk = run(
-            ["lsblk", "-n", "-o", "SIZE,KNAME,LABEL", "-b", f"/dev/{device}"],
+            command,
             stderr=STDOUT,
             stdout=PIPE,
             check=True,
         )
         sort = run(["sort", "-r"], input=lsblk.stdout, stdout=PIPE, check=True)
-        head = run(["head", "-2"], input=sort.stdout, stdout=PIPE, check=True)
-        device_info = check_output(["tail", "-1"], input=head.stdout).decode().strip()
 
-        if len(device_info.split()) < 2:
+        partition = check_output(["head", "-1"], input=sort.stdout).decode().split()[1]
+
+        if partition == "":
             app_logger.critical("'%s' does not contain proper partition", device)
             return None
 
-        return device_info.split()[1:]
-    except CalledProcessError:
-        app_logger.critical("'%s' does not seem to be a proper block device", device)
+        label = check_output(
+            ["blkid", "-o", "value", "-s", "LABEL", f"/dev/{partition}"]
+        ).decode().strip()
+
+        return [partition, label]
+
+    except CalledProcessError as error:
+        app_logger.critical(error)
         return None
 
 
@@ -79,37 +90,31 @@ def device_attached(name: str) -> None:
         return
     event_logger.info("::: %s %s mounted on %s", datetime.now(), name, source)
 
-    # read config and create destination folder
     config = configparser.ConfigParser()
     config.read("config.ini")
-    project = f"{config['PROJECT']['name']}-{custom_timestamp('date')}"
 
+    project = f"{config['PROJECT']['name']}-{custom_timestamp('date')}"
     folder_prefix = device.label if device.label != "" else device.name
+    folder_root = f"/home/copycat/mounts"
+
     destination = Path(
-        f"/home/copycat/mounts/{project}/{folder_prefix}-{custom_timestamp('datetime')}"
+        f"{folder_root}/{project}/{folder_prefix}_{custom_timestamp('datetime')}"
     )
     try:
         run(["mkdir", "-p", destination], user="copycat", group="copycat", check=True)
     except CalledProcessError as error:
         app_logger.critical(error)
 
-    if not create_checksum_file(source, destination):
-        return
+    if create_checksum_file(source, destination):
+        event_logger.info(
+            "::: %s %s copied to %s", datetime.now(), device.label, destination
+        )
 
-    #if not copytools.vcopy(source, destination):
-    #    return
-
-    event_logger.info(
-        "::: %s %s copied to %s", datetime.now(), device.label, destination
-    )
-
-    # unmount drive
     try:
         run(["umount", source], check=True)
     except CalledProcessError as error:
         app_logger.critical(error)
 
-    # delete mount point
     try:
         run(["rm", "-rf", source], check=True)
     except CalledProcessError as error:
@@ -121,12 +126,7 @@ def device_attached(name: str) -> None:
 def device_detached(name: str) -> None:
     """Remove attached device."""
 
-    device_info = get_device_info(name)
-    if not device_info:
-        return
-
-    device = Device(name, *device_info)
-    event_logger.info("--- %s %s '%s'", datetime.now(), name, device.label)
+    event_logger.info("--- %s '%s'", datetime.now(), name)
 
 
 def mount_device(device: Device) -> Path | None:
@@ -158,26 +158,19 @@ def create_checksum_file(mount_point: Path, destination: Path) -> bool:
     """Create file with sha1 checksum of all files in destination folder."""
 
     try:
-        find_files = run(
-            ["find", mount_point, "-type", "f", "-print0"],
-            stderr=STDOUT,
-            stdout=PIPE,
-            check=True,
-        )
-        # open file with: stdout=file
         checksum_log = f"{destination}/copystation.log"
         run(["touch", checksum_log], user="copycat", group="copycat", check=True)
         with open(checksum_log, mode="w", encoding="utf8") as file:
             run(
-                ["xargs", "-0", "sha1sum"],
-                input=find_files.stdout,
+                ["find", mount_point, "-type", "f"],
+                stderr=STDOUT,
                 stdout=file,
-                user="copycat",
-                group="copycat",
                 check=True,
             )
+
     except (CalledProcessError, IOError) as error:
         app_logger.critical(error)
+        return False
 
     return True
 
@@ -189,7 +182,7 @@ def custom_timestamp(date_format="datetime") -> str:
         return datetime.now().strftime("%Y%m%d")
     if date_format == "time":
         return datetime.now().strftime("%H%M%S")
-    return datetime.now().strftime("%Y%m%d_%H%M%S")
+    return datetime.now().strftime("%y%m%d-%H%M%S")
 
 
 def set_user_settings(project_name: str):
