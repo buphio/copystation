@@ -39,29 +39,20 @@ class Device:
 
 def get_device_info(device: str) -> list | None:
     """
-    Try to get biggest partition (to mount) and label of attached block device.
-    lsblk -n -o SIZE,KNAME,LABEL --bytes /dev/xxx | sort -r | head -2 | tail -1
-    TODO: change KNAME(partition) to PARTUUID(partuiid)
-          -> needs to be tested
-          change to other tools for LABEL?
+    Try to get biggest partition and label of attached block device.
     """
 
     command = ["lsblk", "-n", "-o", "SIZE,KNAME", "-b"]
     command.extend(glob(f"/dev/{device}[0-9]"))
 
     try:
-        lsblk = run(
-            command,
-            stderr=STDOUT,
-            stdout=PIPE,
-            check=True,
-        )
+        lsblk = run(command, stderr=STDOUT, stdout=PIPE, check=True)
         sort = run(["sort", "-r"], input=lsblk.stdout, stdout=PIPE, check=True)
 
         partition = check_output(["head", "-1"], input=sort.stdout).decode().split()[1]
 
         if partition == "":
-            app_logger.critical("'%s' does not contain proper partition", device)
+            app_logger.critical("'%s': could not parse required partition", device)
             return None
 
         label = check_output(
@@ -142,6 +133,7 @@ def mount_device(device: Device) -> Path | None:
         return None
 
     #? check filesystem first, for edge-cases where multiple fs are given(?)
+    # blkid -o value -s TYPE /dev/
     try:
         run(
             ["mount", "-o", "ro", f"/dev/{device.partition}", mount_point],
