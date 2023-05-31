@@ -1,0 +1,4 @@
+KERNEL=="sd*[!0-9]|sr*", SUBSYSTEMS=="block", ACTION=="add", RUN+="/usr/bin/systemctl start copystation-add@%k.service"
+#SUBSYSTEM=="usb", ACTION=="add", RUN+="/usr/bin/systemctl start copystation-add@%k.service"
+KERNEL=="sd*[!0-9]|sr*", SUBSYSTEMS=="block", ACTION=="remove", RUN+="/usr/bin/systemctl start copystation-delete@%k.service"
+#SUBSYSTEM=="usb", ACTION=="remove", RUN+="/usr/bin/systemctl start copystation-delete@%k.service"
