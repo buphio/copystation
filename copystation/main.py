@@ -17,14 +17,14 @@ from fastapi import BackgroundTasks, FastAPI, Request
 from fastapi.responses import HTMLResponse
 from fastapi.templating import Jinja2Templates
 
-#from . import copytools
+# from . import copytools
 
 
 app = FastAPI()
 
 templates = Jinja2Templates(directory="templates")
 
-logging.config.fileConfig("logging.ini")
+logging.config.fileConfig("logs/logging.ini")
 event_logger = logging.getLogger("events")
 app_logger = logging.getLogger("app")
 
@@ -32,6 +32,7 @@ app_logger = logging.getLogger("app")
 @dataclass
 class Device:
     """Device class that holds information of attached drive."""
+
     name: str
     partition: str
     label: str = ""
@@ -39,25 +40,34 @@ class Device:
 
 def get_device_info(device: str) -> list | None:
     """
-    Try to get biggest partition and label of attached block device.
+    Try to get biggest partition and its label of newly attached block device.
     """
 
     command = ["lsblk", "-n", "-o", "SIZE,KNAME", "-b"]
-    command.extend(glob(f"/dev/{device}[0-9]"))
+    partitions = glob(f"/dev/{device}[0-9]")
+
+    if not partitions:
+        app_logger.critical("Device '%s' not found.", device)
+        return None
+
+    command.extend(partitions)
 
     try:
         lsblk = run(command, stderr=STDOUT, stdout=PIPE, check=True)
         sort = run(["sort", "-r"], input=lsblk.stdout, stdout=PIPE, check=True)
 
         partition = check_output(["head", "-1"], input=sort.stdout).decode().split()[1]
+        print(partition)
 
-        if partition == "":
+        if not partition:
             app_logger.critical("'%s': could not parse required partition", device)
             return None
 
-        label = check_output(
-            ["blkid", "-o", "value", "-s", "LABEL", f"/dev/{partition}"]
-        ).decode().strip()
+        label = (
+            check_output(["blkid", "-o", "value", "-s", "LABEL", f"/dev/{partition}"])
+            .decode()
+            .strip()
+        )
 
         return [partition, label]
 
@@ -132,12 +142,17 @@ def mount_device(device: Device) -> Path | None:
         app_logger.critical("Could not create '%s'", mount_point)
         return None
 
-    #? check filesystem first, for edge-cases where multiple fs are given(?)
-    # blkid -o value -s TYPE /dev/
     try:
+        fs_type = check_output(
+            ["blkid", "-o", "value", "-s", "TYPE", f"/dev/{device.partition}"]
+        ).decode().strip()
+        # weird fstype given by Atomos recorder
+        if fs_type == "":
+            fs_type = "exfat"
         run(
-            ["mount", "-o", "ro", f"/dev/{device.partition}", mount_point],
-            check=True
+            ["mount", "-t", fs_type, "-o", "ro",
+             f"/dev/{device.partition}", mount_point],
+            check=True,
         )
     except CalledProcessError as error:
         app_logger.critical(error.output)
@@ -187,7 +202,9 @@ def set_user_settings(project_name: str):
     with open("config.ini", "w", encoding="utf-8") as config_file:
         config.write(config_file)
 
-    event_logger.info("::: %s Changed project name to '%s'", datetime.now(), project_name)
+    event_logger.info(
+        "::: %s Changed project name to '%s'", datetime.now(), project_name
+    )
     app_logger.info("Changed project name to %s", project_name)
 
 

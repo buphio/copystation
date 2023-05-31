@@ -1,2 +1,0 @@
-KERNEL=="sd[b-z]", ACTION=="add", RUN+="/usr/bin/curl -X POST localhost:4242/device/%k"
-KERNEL=="sd[b-z]", ACTION=="remove", RUN+="/usr/bin/curl -X DELETE localhost:4242/device/%k"
