@@ -26,7 +26,6 @@ app = FastAPI()
 templates = Jinja2Templates(directory="templates")
 
 logging.config.fileConfig("logs/logging.ini")
-event_logger = logging.getLogger("events")
 app_logger = logging.getLogger("app")
 
 
@@ -53,20 +52,21 @@ def get_device_info(device: str) -> list | None:
     # unfortunately udev fires off the add rule before the kernel module is fully
     # loaded, hence the hacky sleep method
     time.sleep(2)
-    print("1: sleep(2) finished")
 
     try:
         device_path = check_output(
             ["udevadm", "info", "-q", "path", "-n", f"/dev/{device}"]
         ).decode().strip()
-        print(f"2: {device_path}")
+        # delete
+        app_logger.info(device_path)
         port = (re.search("ata[1-9]|usb[1-9]", device_path)).group()  #pyright: ignore
 
         if not port:
             app_logger.critical("Could not detect device port")
             return
 
-        print(f"3: port defined: {port}")
+        # delete
+        app_logger.info(port)
 
     except CalledProcessError as error:
         app_logger.critical(error)
@@ -77,22 +77,26 @@ def get_device_info(device: str) -> list | None:
     if not partitions:
         app_logger.critical("%s does not contain any valid partitions", device)
         return
-    print(f"4: {partitions}")
+    # delete
+    app_logger.info(partitions)
 
     command = ["lsblk", "-n", "-o", "SIZE,KNAME,FSTYPE,LABEL", "-b"]
     command.extend(partitions)
-    print(f"5: {command}")
+    # delete
+    app_logger.info(command)
 
     try:
         lsblk = run(command, stderr=STDOUT, stdout=PIPE, check=True)
         sort = run(["sort", "-rn"], input=lsblk.stdout, stdout=PIPE, check=True)
-        print(f"6: {sort}")
+        # delete
+        app_logger.info(sort)
 
         device_info = check_output(["head", "-1"], input=sort.stdout).decode().split()[1:]
 
         if len(device_info) == 1:
             device_info.extend(["exfat", "UNKNOWN"])
-        print(f"7: {device_info}")
+        # delete
+        app_logger.info(device_info)
 
     except (CalledProcessError) as error:
         app_logger.critical(error)
@@ -107,13 +111,13 @@ def get_device_info(device: str) -> list | None:
 
         serial_number = smartctl["serial_number"]
         smart_status = "Passed" if smartctl["smart_status"]["passed"] else "Failed"
-        print(f"8: {serial_number} {smart_status}")
+        # delete
+        app_logger.info(f"{serial_number} {smart_status}")
 
     except (CalledProcessError, json.JSONDecodeError) as error:
         app_logger.warning(error)
         smart_status, serial_number = ""
 
-    print("9: returning values...")
     return [serial_number, device_info[0], device_info[1], smart_status, port, device_info[2]]
 
 
@@ -121,13 +125,15 @@ def device_attached(name: str) -> None:
     """Try to mount supplied device and copy all files from it."""
 
     device_info = get_device_info(name)
-    print(f"10: {device_info}")
+    # delete
+    app_logger.info(device_info)
     if not device_info:
         app_logger.critical("Error obtaining device information.")
         return
 
     device = Device(name, *device_info)
-    print("11: device created!")
+    # delete
+    app_logger.info("device created")
 
     # !!!
     # open file with port here
@@ -137,14 +143,17 @@ def device_attached(name: str) -> None:
     # !!!
 
     with open(f"logs/{device.port}.log", "a+", encoding="utf-8") as logfile:
-        logfile.write(f"\u2713 '{device.label}' attached\n")
+        logfile.write(f"\u2713 {datetime.now()} '{device.label}' attached\n")
+
+        if device.smart_status == "Passed":
+            logfile.write(f"\u26A0 {datetime.now()} '{device.label}' check S.M.A.R.T status\n")
 
         source = mount_device(device)
         if not source:
             logfile.write(f"\u274C '{device.label}' could not be mounted\n")
             return
 
-        logfile.write(f"\u2713 '{device.label}' mounted\n")
+        logfile.write(f"\u2713 {datetime.now()} '{device.label}' mounted\n")
 
         config = configparser.ConfigParser()
         config.read("config.ini")
@@ -162,7 +171,7 @@ def device_attached(name: str) -> None:
             app_logger.critical(error)
 
         if create_checksum_file(source, destination):
-            logfile.write(f"\u2713 '{device.label}' finished copying\n")
+            logfile.write(f"\u2713 {datetime.now()} '{device.label}' finished copying\n")
         else:
             logfile.write(f"\u274C '{device.label}' error while copying\n")
 
@@ -176,13 +185,7 @@ def device_attached(name: str) -> None:
         except CalledProcessError as error:
             app_logger.critical(error)
 
-        logfile.write(f"\u2713 '{device.label}' ready to be ejected\n\n")
-
-
-def device_detached(name: str) -> None:
-    """Remove attached device."""
-
-    event_logger.info("--- %s '%s'", datetime.now(), name)
+        logfile.write(f"\u2713 {datetime.now()} '{device.label}' ready to be ejected\n\n")
 
 
 def mount_device(device: Device) -> Path | None:
@@ -258,9 +261,6 @@ def set_user_settings(project_name: str):
     with open("config.ini", "w", encoding="utf-8") as config_file:
         config.write(config_file)
 
-    event_logger.info(
-        "::: %s Changed project name to '%s'", datetime.now(), project_name
-    )
     app_logger.info("Changed project name to %s", project_name)
 
 
@@ -292,13 +292,6 @@ async def device_post(name: str, background_tasks: BackgroundTasks):
     """POST newly attached block device."""
     background_tasks.add_task(device_attached, name)
     return {f"{name}": "added"}
-
-
-@app.delete("/device/{name}")
-async def device_delete(name: str, background_tasks: BackgroundTasks):
-    """DELETE attached block device."""
-    background_tasks.add_task(device_detached, name)
-    return {f"{name}": "removed"}
 
 
 @app.post("/settings/{project_name}")
