@@ -5,7 +5,10 @@ Copyright (c) 2023 Philipp Buchinger
 """
 
 import configparser
+import json
 import logging.config
+import re
+import time
 
 from dataclasses import dataclass
 from datetime import datetime
@@ -16,8 +19,6 @@ from subprocess import check_output, run, PIPE, STDOUT, CalledProcessError
 from fastapi import BackgroundTasks, FastAPI, Request
 from fastapi.responses import HTMLResponse
 from fastapi.templating import Jinja2Templates
-
-# from . import copytools
 
 
 app = FastAPI()
@@ -34,62 +35,119 @@ class Device:
     """Device class that holds information of attached drive."""
 
     name: str
+    serial: str
     partition: str
+    fstype: str
+    smart_status: str
+    port: str = ""
     label: str = ""
 
 
 def get_device_info(device: str) -> list | None:
     """
     Try to get biggest partition and its label of newly attached block device.
+    - udevadm info -q path -n /dev/sd
+    - (re.search("ata[1-9]|usb[1-9]", string)).group()
     """
 
-    command = ["lsblk", "-n", "-o", "SIZE,KNAME", "-b"]
+    # unfortunately udev fires off the add rule before the kernel module is fully
+    # loaded, hence the hacky sleep method
+    time.sleep(2)
+    print("1: sleep(2) finished")
+
+    try:
+        device_path = check_output(
+            ["udevadm", "info", "-q", "path", "-n", f"/dev/{device}"]
+        ).decode().strip()
+        print(f"2: {device_path}")
+        port = (re.search("ata[1-9]|usb[1-9]", device_path)).group()  #pyright: ignore
+
+        if not port:
+            app_logger.critical("Could not detect device port")
+            return
+
+        print(f"3: port defined: {port}")
+
+    except CalledProcessError as error:
+        app_logger.critical(error)
+        return
+
     partitions = glob(f"/dev/{device}[0-9]")
 
     if not partitions:
-        app_logger.critical("Device '%s' not found.", device)
-        return None
+        app_logger.critical("%s does not contain any valid partitions", device)
+        return
+    print(f"4: {partitions}")
 
+    command = ["lsblk", "-n", "-o", "SIZE,KNAME,FSTYPE,LABEL", "-b"]
     command.extend(partitions)
+    print(f"5: {command}")
 
     try:
         lsblk = run(command, stderr=STDOUT, stdout=PIPE, check=True)
-        sort = run(["sort", "-r"], input=lsblk.stdout, stdout=PIPE, check=True)
+        sort = run(["sort", "-rn"], input=lsblk.stdout, stdout=PIPE, check=True)
+        print(f"6: {sort}")
 
-        partition = check_output(["head", "-1"], input=sort.stdout).decode().split()[1]
-        print(partition)
+        device_info = check_output(["head", "-1"], input=sort.stdout).decode().split()[1:]
 
-        if not partition:
-            app_logger.critical("'%s': could not parse required partition", device)
-            return None
+        if len(device_info) == 1:
+            device_info.extend(["exfat", "UNKNOWN"])
+        print(f"7: {device_info}")
 
-        label = (
-            check_output(["blkid", "-o", "value", "-s", "LABEL", f"/dev/{partition}"])
+    except (CalledProcessError) as error:
+        app_logger.critical(error)
+        return None
+
+    try:
+        smartctl = json.loads(
+            check_output(["smartctl", "-ia", "--json", f"/dev/{device}"])
             .decode()
             .strip()
         )
 
-        return [partition, label]
+        serial_number = smartctl["serial_number"]
+        smart_status = "Passed" if smartctl["smart_status"]["passed"] else "Failed"
+        print(f"8: {serial_number} {smart_status}")
 
-    except CalledProcessError as error:
-        app_logger.critical(error)
-        return None
+    except (CalledProcessError, json.JSONDecodeError) as error:
+        app_logger.warning(error)
+        smart_status, serial_number = ""
+
+    print("9: returning values...")
+    return [serial_number, device_info[0], device_info[1], smart_status, port, device_info[2]]
 
 
 def device_attached(name: str) -> None:
     """Try to mount supplied device and copy all files from it."""
 
     device_info = get_device_info(name)
+    print(f"10: {device_info}")
     if not device_info:
+        app_logger.critical("Error obtaining device information.")
         return
 
     device = Device(name, *device_info)
-    event_logger.info("+++ %s %s '%s'", datetime.now(), name, device.label)
+    print("11: device created!")
+    event_logger.info("+++ %s %s (%s) attached", datetime.now(), device.label, name)
+    event_logger.info(
+        "::: %s %s (%s) SMART status: %s",
+        datetime.now(),
+        device.label,
+        device.serial,
+        device.smart_status,
+    )
 
     source = mount_device(device)
     if not source:
         return
-    event_logger.info("::: %s %s mounted on %s", datetime.now(), name, source)
+
+    event_logger.info(
+        "::: %s %s (%s) mounted on %s",
+        datetime.now(),
+        device.label,
+        device.serial,
+        source,
+    )
 
     config = configparser.ConfigParser()
     config.read("config.ini")
@@ -108,7 +166,11 @@ def device_attached(name: str) -> None:
 
     if create_checksum_file(source, destination):
         event_logger.info(
-            "::: %s %s copied to %s", datetime.now(), device.label, destination
+            "::: %s %s (%s) copied to %s",
+            datetime.now(),
+            device.label,
+            device.serial,
+            destination,
         )
 
     try:
@@ -121,7 +183,12 @@ def device_attached(name: str) -> None:
     except CalledProcessError as error:
         app_logger.critical(error)
 
-    event_logger.info("::: %s %s ready to be ejected", datetime.now(), device.label)
+    event_logger.info(
+        "::: %s %s (%s) ready to be ejected",
+        datetime.now(),
+        device.label,
+        device.serial,
+    )
 
 
 def device_detached(name: str) -> None:
@@ -135,7 +202,7 @@ def mount_device(device: Device) -> Path | None:
     Create mount point from device label or device name and try to mount it.
     """
 
-    mount_point = Path(f"/mnt/{device.name}-{custom_timestamp()}")
+    mount_point = Path(f"/mnt/{device.name}_{custom_timestamp()}")
     try:
         run(["mkdir", "-p", mount_point], check=True)
     except CalledProcessError:
@@ -143,15 +210,16 @@ def mount_device(device: Device) -> Path | None:
         return None
 
     try:
-        fs_type = check_output(
-            ["blkid", "-o", "value", "-s", "TYPE", f"/dev/{device.partition}"]
-        ).decode().strip()
-        # weird fstype given by Atomos recorder
-        if fs_type == "":
-            fs_type = "exfat"
         run(
-            ["mount", "-t", fs_type, "-o", "ro",
-             f"/dev/{device.partition}", mount_point],
+            [
+                "mount",
+                "-t",
+                device.fstype,
+                "-o",
+                "ro",
+                f"/dev/{device.partition}",
+                mount_point,
+            ],
             check=True,
         )
     except CalledProcessError as error:
