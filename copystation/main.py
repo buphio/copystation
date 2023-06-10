@@ -128,67 +128,55 @@ def device_attached(name: str) -> None:
 
     device = Device(name, *device_info)
     print("11: device created!")
-    event_logger.info("+++ %s %s (%s) attached", datetime.now(), device.label, name)
-    event_logger.info(
-        "::: %s %s (%s) SMART status: %s",
-        datetime.now(),
-        device.label,
-        device.serial,
-        device.smart_status,
-    )
 
-    source = mount_device(device)
-    if not source:
-        return
+    # !!!
+    # open file with port here
+    # \u274C - xmark
+    # \u2713 - checkmark
+    # ? create file with copycat user ?
+    # !!!
 
-    event_logger.info(
-        "::: %s %s (%s) mounted on %s",
-        datetime.now(),
-        device.label,
-        device.serial,
-        source,
-    )
+    with open(f"logs/{device.port}.log", "a+", encoding="utf-8") as logfile:
+        logfile.write(f"\u2713 '{device.label}' attached\n")
 
-    config = configparser.ConfigParser()
-    config.read("config.ini")
+        source = mount_device(device)
+        if not source:
+            logfile.write(f"\u274C '{device.label}' could not be mounted\n")
+            return
 
-    project = f"{config['PROJECT']['name']}-{custom_timestamp('date')}"
-    folder_prefix = device.label if device.label != "" else device.name
-    folder_root = f"/home/copycat/mounts"
+        logfile.write(f"\u2713 '{device.label}' mounted\n")
 
-    destination = Path(
-        f"{folder_root}/{project}/{folder_prefix}_{custom_timestamp('datetime')}"
-    )
-    try:
-        run(["mkdir", "-p", destination], user="copycat", group="copycat", check=True)
-    except CalledProcessError as error:
-        app_logger.critical(error)
+        config = configparser.ConfigParser()
+        config.read("config.ini")
 
-    if create_checksum_file(source, destination):
-        event_logger.info(
-            "::: %s %s (%s) copied to %s",
-            datetime.now(),
-            device.label,
-            device.serial,
-            destination,
+        project = f"{config['PROJECT']['name']}-{custom_timestamp('date')}"
+        folder_prefix = device.label if device.label != "" else device.name
+        folder_root = f"/home/copycat/mounts"
+
+        destination = Path(
+            f"{folder_root}/{project}/{folder_prefix}_{custom_timestamp('datetime')}"
         )
+        try:
+            run(["mkdir", "-p", destination], user="copycat", group="copycat", check=True)
+        except CalledProcessError as error:
+            app_logger.critical(error)
 
-    try:
-        run(["umount", source], check=True)
-    except CalledProcessError as error:
-        app_logger.critical(error)
+        if create_checksum_file(source, destination):
+            logfile.write(f"\u2713 '{device.label}' finished copying\n")
+        else:
+            logfile.write(f"\u274C '{device.label}' error while copying\n")
 
-    try:
-        run(["rm", "-rf", source], check=True)
-    except CalledProcessError as error:
-        app_logger.critical(error)
+        try:
+            run(["umount", source], check=True)
+        except CalledProcessError as error:
+            app_logger.critical(error)
 
-    event_logger.info(
-        "::: %s %s (%s) ready to be ejected",
-        datetime.now(),
-        device.label,
-        device.serial,
-    )
+        try:
+            run(["rm", "-rf", source], check=True)
+        except CalledProcessError as error:
+            app_logger.critical(error)
+
+        logfile.write(f"\u2713 '{device.label}' ready to be ejected\n\n")
 
 
 def device_detached(name: str) -> None:
