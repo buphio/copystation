@@ -1,1 +1,1 @@
-sudo ~/.venvs/cs/bin/uvicorn main:app --reload --host 0.0.0.0 --port 4242
+sudo ../venv/bin/uvicorn main:app --reload --host 0.0.0.0 --port 4242
