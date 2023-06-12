@@ -1,0 +1,26 @@
+<!DOCTYPE html>
+<html lang="en">
+    <head>
+        <meta charset="UTF-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1.0">
+        <meta http-equiv="X-UA-Compatible" content="ie=edge">
+        <title>copybox POC</title>
+        <link href="{{ url_for('static', path='/style.css') }}" rel="stylesheet">
+        <script src="https://cdn.jsdelivr.net/npm/htmx.org@latest"></script>
+    </head>
+    <body>
+        <div class="main-box">
+            <h1>CopyBox</h1>
+            <div class="parent">
+                <div class="div1" hx-get="{{ url_for('logs', path='/usb2.log') }}" hx-trigger="load, every 1ms"></div>
+                <div class="div2"></div>
+                <div class="div3"></div>
+                <div class="div4"></div>
+                <div class="div5">Disk #1</div>
+                <div class="div6">Disk #2</div>
+                <div class="div7">Disk #3</div>
+                <div class="div8">Disk #4</div>
+            </div>
+        </div>
+    </body>
+</html>
