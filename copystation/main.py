@@ -141,14 +141,17 @@ def device_attached(name: str) -> None:
     with open(f"logs/{device.port}.log", "a+", encoding="utf-8") as logfile:
         logfile.write(f"\u2713 {datetime.now()} '{device.label}' attached<br />")
 
+    with open(f"logs/{device.port}.log", "a+", encoding="utf-8") as logfile:
         if device.smart_status == "Passed":
             logfile.write(f"\u26A0 {datetime.now()} '{device.label}' check S.M.A.R.T<br />")
 
+    with open(f"logs/{device.port}.log", "a+", encoding="utf-8") as logfile:
         source = mount_device(device)
         if not source:
             logfile.write(f"\u274C '{device.label}' could not be mounted<br />")
             return
 
+    with open(f"logs/{device.port}.log", "a+", encoding="utf-8") as logfile:
         logfile.write(f"\u2713 {datetime.now()} '{device.label}' mounted<br />")
 
         config = configparser.ConfigParser()
@@ -166,6 +169,9 @@ def device_attached(name: str) -> None:
         except CalledProcessError as error:
             app_logger.critical(error)
 
+    time.sleep(5)
+
+    with open(f"logs/{device.port}.log", "a+", encoding="utf-8") as logfile:
         if create_checksum_file(source, destination):
             logfile.write(f"\u2713 {datetime.now()} '{device.label}' finished copying<br />")
         else:
@@ -181,6 +187,8 @@ def device_attached(name: str) -> None:
         except CalledProcessError as error:
             app_logger.critical(error)
 
+
+    with open(f"logs/{device.port}.log", "a+", encoding="utf-8") as logfile:
         logfile.write(f"<span style='color:greenyellow;'>\u2713 {datetime.now()} '{device.label}' ready to be ejected</span><br /><br />")
 
 
