@@ -13,9 +13,9 @@
             <h1>CopyBox</h1>
             <div class="parent">
                 <div class="div1" hx-get="{{ url_for('logs', path='/usb2.log') }}" hx-trigger="load, every 1ms"></div>
-                <div class="div2"></div>
-                <div class="div3"></div>
-                <div class="div4"></div>
+                <div class="div2" hx-get="{{ url_for('logs', path='/ata2.log') }}" hx-trigger="load, every 1ms"></div>
+                <div class="div3" hx-get="{{ url_for('logs', path='/ata3.log') }}" hx-trigger="load, every 1ms"></div>
+                <div class="div4" hx-get="{{ url_for('logs', path='/ata4.log') }}" hx-trigger="load, every 1ms"></div>
                 <div class="div5">Disk #1</div>
                 <div class="div6">Disk #2</div>
                 <div class="div7">Disk #3</div>
