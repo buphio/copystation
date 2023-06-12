@@ -18,12 +18,15 @@ from subprocess import check_output, run, PIPE, STDOUT, CalledProcessError
 
 from fastapi import BackgroundTasks, FastAPI, Request
 from fastapi.responses import HTMLResponse
+from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 
 
 app = FastAPI()
 
 templates = Jinja2Templates(directory="templates")
+app.mount("/static", StaticFiles(directory="static"), name="static")
+app.mount("/logs", StaticFiles(directory="logs"), name="logs")
 
 logging.config.fileConfig("logs/logging.ini")
 app_logger = logging.getLogger("app")
@@ -88,8 +91,6 @@ def get_device_info(device: str) -> list | None:
     try:
         lsblk = run(command, stderr=STDOUT, stdout=PIPE, check=True)
         sort = run(["sort", "-rn"], input=lsblk.stdout, stdout=PIPE, check=True)
-        # delete
-        app_logger.info(sort)
 
         device_info = check_output(["head", "-1"], input=sort.stdout).decode().split()[1:]
 
@@ -135,25 +136,20 @@ def device_attached(name: str) -> None:
     # delete
     app_logger.info("device created")
 
-    # !!!
-    # open file with port here
-    # \u274C - xmark
-    # \u2713 - checkmark
     # ? create file with copycat user ?
-    # !!!
 
     with open(f"logs/{device.port}.log", "a+", encoding="utf-8") as logfile:
-        logfile.write(f"\u2713 {datetime.now()} '{device.label}' attached\n")
+        logfile.write(f"\u2713 {datetime.now()} '{device.label}' attached<br />")
 
         if device.smart_status == "Passed":
-            logfile.write(f"\u26A0 {datetime.now()} '{device.label}' check S.M.A.R.T status\n")
+            logfile.write(f"\u26A0 {datetime.now()} '{device.label}' check S.M.A.R.T<br />")
 
         source = mount_device(device)
         if not source:
-            logfile.write(f"\u274C '{device.label}' could not be mounted\n")
+            logfile.write(f"\u274C '{device.label}' could not be mounted<br />")
             return
 
-        logfile.write(f"\u2713 {datetime.now()} '{device.label}' mounted\n")
+        logfile.write(f"\u2713 {datetime.now()} '{device.label}' mounted<br />")
 
         config = configparser.ConfigParser()
         config.read("config.ini")
@@ -171,9 +167,9 @@ def device_attached(name: str) -> None:
             app_logger.critical(error)
 
         if create_checksum_file(source, destination):
-            logfile.write(f"\u2713 {datetime.now()} '{device.label}' finished copying\n")
+            logfile.write(f"\u2713 {datetime.now()} '{device.label}' finished copying<br />")
         else:
-            logfile.write(f"\u274C '{device.label}' error while copying\n")
+            logfile.write(f"\u274C '{device.label}' error while copying<br />")
 
         try:
             run(["umount", source], check=True)
@@ -185,7 +181,7 @@ def device_attached(name: str) -> None:
         except CalledProcessError as error:
             app_logger.critical(error)
 
-        logfile.write(f"\u2713 {datetime.now()} '{device.label}' ready to be ejected\n\n")
+        logfile.write(f"<span style='color:greenyellow;'>\u2713 {datetime.now()} '{device.label}' ready to be ejected</span><br /><br />")
 
 
 def mount_device(device: Device) -> Path | None:
@@ -265,7 +261,12 @@ def set_user_settings(project_name: str):
 
 
 @app.get("/", response_class=HTMLResponse)
-async def root(request: Request):  # TEMP SOLUTION FOR TESTING PURPOSES
+async def root(request: Request):
+    return templates.TemplateResponse("index.html", {"request": request})
+
+
+@app.get("/events", response_class=HTMLResponse)
+async def events(request: Request):  # TEMP SOLUTION FOR TESTING PURPOSES
     """Read 'events.log' and present it in colorcoded fashion."""
 
     logs = []
