@@ -60,9 +60,9 @@ def get_device_info(device: str) -> list | None:
         device_path = check_output(
             ["udevadm", "info", "-q", "path", "-n", f"/dev/{device}"]
         ).decode().strip()
-        # delete
+        ### delete
         app_logger.info(device_path)
-        port = (re.search("ata[1-9]|usb[1-9]", device_path)).group()  #pyright: ignore
+        port = (re.search("ata[1-9]|usb[1-9]", device_path)).group()
 
         if not port:
             app_logger.critical("Could not detect device port")
@@ -136,22 +136,17 @@ def device_attached(name: str) -> None:
     # delete
     app_logger.info("device created")
 
-    # ? create file with copycat user ?
-
     with open(f"logs/{device.port}.log", "a+", encoding="utf-8") as logfile:
         logfile.write(f"\u2713 {datetime.now()} '{device.label}' attached<br />")
 
-    with open(f"logs/{device.port}.log", "a+", encoding="utf-8") as logfile:
         if device.smart_status == "Passed":
             logfile.write(f"\u26A0 {datetime.now()} '{device.label}' check S.M.A.R.T<br />")
 
-    with open(f"logs/{device.port}.log", "a+", encoding="utf-8") as logfile:
         source = mount_device(device)
         if not source:
             logfile.write(f"\u274C '{device.label}' could not be mounted<br />")
             return
 
-    with open(f"logs/{device.port}.log", "a+", encoding="utf-8") as logfile:
         logfile.write(f"\u2713 {datetime.now()} '{device.label}' mounted<br />")
 
         config = configparser.ConfigParser()
@@ -168,6 +163,19 @@ def device_attached(name: str) -> None:
             run(["mkdir", "-p", destination], user="copycat", group="copycat", check=True)
         except CalledProcessError as error:
             app_logger.critical(error)
+
+    #with open(f"logs/{device.port}.log", "a+", encoding="utf-8") as logfile:
+    #    try:
+    #        run(
+    #            ["rsync", "-a", "--exclude", ".*", "--progress", source, destination],
+    #            user="copycat",
+    #            group="copycat",
+    #            stderr=STDOUT,
+    #            stdout=logfile,
+    #            check=True
+    #        )
+    #    except CalledProcessError as error:
+    #        app_logger.warning(error.output)
 
     time.sleep(5)
 
@@ -189,7 +197,8 @@ def device_attached(name: str) -> None:
 
 
     with open(f"logs/{device.port}.log", "a+", encoding="utf-8") as logfile:
-        logfile.write(f"<span style='color:greenyellow;'>\u2713 {datetime.now()} '{device.label}' ready to be ejected</span><br /><br />")
+        logfile.write(
+            f"<span style='color:greenyellow;'>\u2713 {datetime.now()} '{device.label}' ready to be ejected</span><br /><br />")
 
 
 def mount_device(device: Device) -> Path | None:
