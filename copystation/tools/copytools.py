@@ -2,7 +2,9 @@
 COPYTOOLS
 Misc tools for copying files - e.g. with checksum verification.
 
-Copyright (c) 2023 Philipp Buchinger
+Author: Philipp Buchinger <philipp@buchinger.io>
+
+(c) 2023
 """
 
 import logging

@@ -1,7 +1,9 @@
 """
 POC for "copystation" FastAPI backend.
 
-Copyright (c) 2023 Philipp Buchinger
+Author: Philipp Buchinger <philipp@buchinger.io>
+
+(c) 2023
 """
 
 import configparser
@@ -60,16 +62,12 @@ def get_device_info(device: str) -> list | None:
         device_path = check_output(
             ["udevadm", "info", "-q", "path", "-n", f"/dev/{device}"]
         ).decode().strip()
-        ### delete
         app_logger.info(device_path)
         port = (re.search("ata[1-9]|usb[1-9]", device_path)).group()
 
         if not port:
             app_logger.critical("Could not detect device port")
             return
-
-        # delete
-        app_logger.info(port)
 
     except CalledProcessError as error:
         app_logger.critical(error)
@@ -80,12 +78,10 @@ def get_device_info(device: str) -> list | None:
     if not partitions:
         app_logger.critical("%s does not contain any valid partitions", device)
         return
-    # delete
     app_logger.info(partitions)
 
     command = ["lsblk", "-n", "-o", "SIZE,KNAME,FSTYPE,LABEL", "-b"]
     command.extend(partitions)
-    # delete
     app_logger.info(command)
 
     try:
@@ -96,7 +92,6 @@ def get_device_info(device: str) -> list | None:
 
         if len(device_info) == 1:
             device_info.extend(["exfat", "UNKNOWN"])
-        # delete
         app_logger.info(device_info)
 
     except (CalledProcessError) as error:
@@ -112,7 +107,6 @@ def get_device_info(device: str) -> list | None:
 
         serial_number = smartctl["serial_number"]
         smart_status = "Passed" if smartctl["smart_status"]["passed"] else "Failed"
-        # delete
         app_logger.info(f"{serial_number} {smart_status}")
 
     except (CalledProcessError, json.JSONDecodeError) as error:
@@ -126,15 +120,11 @@ def device_attached(name: str) -> None:
     """Try to mount supplied device and copy all files from it."""
 
     device_info = get_device_info(name)
-    # delete
-    app_logger.info(device_info)
     if not device_info:
         app_logger.critical("Error obtaining device information.")
         return
 
     device = Device(name, *device_info)
-    # delete
-    app_logger.info("device created")
 
     with open(f"logs/{device.port}.log", "a+", encoding="utf-8") as logfile:
         logfile.write(f"\u2713 {datetime.now()} '{device.label}' attached<br />")
@@ -164,18 +154,18 @@ def device_attached(name: str) -> None:
         except CalledProcessError as error:
             app_logger.critical(error)
 
-    #with open(f"logs/{device.port}.log", "a+", encoding="utf-8") as logfile:
-    #    try:
-    #        run(
-    #            ["rsync", "-a", "--exclude", ".*", "--progress", source, destination],
-    #            user="copycat",
-    #            group="copycat",
-    #            stderr=STDOUT,
-    #            stdout=logfile,
-    #            check=True
-    #        )
-    #    except CalledProcessError as error:
-    #        app_logger.warning(error.output)
+    with open(f"logs/{device.port}.log", "a+", encoding="utf-8") as logfile:
+        try:
+            run(
+                ["rsync", "-avh", "--exclude", ".*", "--progress", source, destination],
+                user="copycat",
+                group="copycat",
+                stderr=STDOUT,
+                stdout=logfile,
+                check=True
+            )
+        except CalledProcessError as error:
+            app_logger.warning(error.output)
 
     time.sleep(5)
 

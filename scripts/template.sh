@@ -1,6 +1,6 @@
 #! /usr/bin/env bash
 #
-# Author: Philipp Buchinger <me@buph.io>
+# Author: Philipp Buchinger <philipp@buchinger.io>
 #
 # (c) 2023
 #
@@ -15,7 +15,6 @@ readonly script_name
 
 
 main() {
-    
 }
 
 main "${0}"
